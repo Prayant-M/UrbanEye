@@ -1,0 +1,6 @@
+{
+  "name": "UrbanEye",
+  "description": "UrbanEye is a hyperlocal problem solver and civic issue reporting platform featuring a real-time reporting dashboard, automated Gemini-powered verification, duplication checking, and dynamic community verification workflows.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
