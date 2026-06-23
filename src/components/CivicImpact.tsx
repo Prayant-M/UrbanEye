@@ -9,9 +9,8 @@ import {
   TrendingUp,
   Image,
   Sparkles,
-  Search
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Issue, UserProfile } from '../types';
 
 interface CivicImpactProps {
@@ -19,7 +18,6 @@ interface CivicImpactProps {
   userProfile: UserProfile | null;
 }
 
-// Sample metrics for Bangalore city-wide analytics
 const CITY_STATS = {
   resolvedPercentage: 84,
   avgHoursToResolve: 28.5,
@@ -27,7 +25,6 @@ const CITY_STATS = {
   tonnesGarbageCleared: 45
 };
 
-// Recharts sample dataset: Issues reported vs resolved over recent months
 const MONTHLY_TRENDS = [
   { name: 'Jan', reported: 45, resolved: 38 },
   { name: 'Feb', reported: 55, resolved: 48 },
@@ -48,67 +45,54 @@ const LEADERBOARD = [
 export default function CivicImpact({ issues, userProfile }: CivicImpactProps) {
   const resolvedIssues = issues.filter(i => i.status === 'resolved');
 
-  // Group by category for charts
-  const categoryCounts = issues.reduce((acc: any, curr) => {
-    acc[curr.category] = (acc[curr.category] || 0) + 1;
-    return acc;
-  }, {});
-
-  const categoryChartData = Object.keys(categoryCounts).map(key => ({
-    name: key.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()),
-    count: categoryCounts[key]
-  }));
-
-  const COLORS = ['#10b981', '#06b6d4', '#fbbf24', '#f97316', '#6366f1', '#f43f5e'];
-
   return (
     <div className="space-y-6 text-left">
       {/* Top Banner: User profile XP stats */}
       {userProfile && (
-        <div className="bg-gradient-to-r from-emerald-950/40 via-cyan-950/20 to-slate-900 border border-emerald-500/20 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="bg-gradient-to-r from-emerald-50 via-cyan-50/40 to-slate-100 border border-emerald-150 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="relative">
-              <div className="h-14 w-14 rounded-full border-2 border-emerald-400 p-0.5 overflow-hidden bg-slate-950">
+              <div className="h-14 w-14 rounded-full border-2 border-emerald-500 p-0.5 overflow-hidden bg-white shadow-xs">
                 <img
                   src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150"
                   alt="Ananya Profile"
                   className="h-full w-full object-cover rounded-full"
                 />
               </div>
-              <span className="absolute -bottom-1 -right-1 bg-amber-500 text-slate-950 text-[10px] font-bold px-1.5 rounded-full flex items-center gap-0.5 shadow-md">
-                <Flame className="h-3 w-3 fill-slate-950 stroke-none" />
+              <span className="absolute -bottom-1 -right-1 bg-amber-500 text-white text-[10px] font-bold px-1.5 rounded-full flex items-center gap-0.5 shadow-xs">
+                <Flame className="h-3 w-3 fill-white stroke-none" />
                 {userProfile.streak}
               </span>
             </div>
 
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-white">{userProfile.name}</h3>
-                <span className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
-                  Level 4 Sentinel
+                <h3 className="text-lg font-extrabold text-slate-900">{userProfile.name}</h3>
+                <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 font-bold">
+                  {userProfile.role === 'officer' ? 'Municipal Admin' : 'Level 4 Sentinel'}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-1 font-mono">
+              <p className="text-xs text-slate-500 mt-1 font-mono">
                 Streak: {userProfile.streak} days consecutive watch | Ward: Koramangala
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-6">
-            <div className="text-center md:text-right">
-              <div className="text-xs text-slate-400 font-medium">Earned Citizen Experience</div>
-              <div className="text-2xl font-black text-emerald-400 font-mono mt-0.5">
+            <div className="text-left md:text-right">
+              <div className="text-xs text-slate-500 font-medium">Earned Citizen Experience</div>
+              <div className="text-2xl font-black text-emerald-600 font-mono mt-0.5">
                 {userProfile.points} <span className="text-xs font-bold text-slate-400">XP</span>
               </div>
             </div>
 
-            <div className="h-10 w-px bg-slate-800 hidden sm:block"></div>
+            <div className="h-10 w-px bg-slate-200 hidden sm:block"></div>
 
             <div className="flex items-center gap-1.5">
-              <div className="text-center">
-                <div className="text-xs text-slate-400 font-medium">Contributed</div>
-                <div className="text-sm font-bold text-slate-200 mt-0.5">
-                  {userProfile.reportsCount} <span className="text-[10px] text-slate-500 font-normal">reports</span>
+              <div className="text-left">
+                <div className="text-xs text-slate-500 font-medium">Contributed</div>
+                <div className="text-sm font-bold text-slate-800 mt-0.5">
+                  {userProfile.reportsCount} <span className="text-[10px] text-slate-400 font-normal">reports</span>
                 </div>
               </div>
             </div>
@@ -118,43 +102,43 @@ export default function CivicImpact({ issues, userProfile }: CivicImpactProps) {
 
       {/* Grid: Public Impact Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-            <CheckCircle className="h-5 w-5 text-emerald-400" />
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 shadow-xs">
+          <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100">
+            <CheckCircle className="h-5 w-5 text-emerald-600" />
           </div>
           <div>
-            <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">SLA Clearance</div>
-            <div className="text-lg font-black text-white font-mono mt-0.5">{CITY_STATS.resolvedPercentage}%</div>
+            <div className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">SLA Clearance</div>
+            <div className="text-lg font-black text-slate-900 font-mono mt-0.5">{CITY_STATS.resolvedPercentage}%</div>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
-            <Clock className="h-5 w-5 text-cyan-400" />
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 shadow-xs">
+          <div className="h-10 w-10 rounded-lg bg-cyan-50 flex items-center justify-center border border-cyan-100">
+            <Clock className="h-5 w-5 text-cyan-600" />
           </div>
           <div>
-            <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">Avg Response Time</div>
-            <div className="text-lg font-black text-white font-mono mt-0.5">{CITY_STATS.avgHoursToResolve} hrs</div>
+            <div className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">Avg Response Time</div>
+            <div className="text-lg font-black text-slate-900 font-mono mt-0.5">{CITY_STATS.avgHoursToResolve} hrs</div>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
-            <Users className="h-5 w-5 text-yellow-400" />
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 shadow-xs">
+          <div className="h-10 w-10 rounded-lg bg-yellow-50 flex items-center justify-center border border-yellow-100">
+            <Users className="h-5 w-5 text-yellow-600" />
           </div>
           <div>
-            <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">Active Watch Patrollers</div>
-            <div className="text-lg font-black text-white font-mono mt-0.5">{CITY_STATS.activeReporters}</div>
+            <div className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">Active Watch Patrollers</div>
+            <div className="text-lg font-black text-slate-900 font-mono mt-0.5">{CITY_STATS.activeReporters}</div>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
-            <Zap className="h-5 w-5 text-indigo-400" />
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 shadow-xs">
+          <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center border border-indigo-100">
+            <Zap className="h-5 w-5 text-indigo-600" />
           </div>
           <div>
-            <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">Waste Diverted</div>
-            <div className="text-lg font-black text-white font-mono mt-0.5">{CITY_STATS.tonnesGarbageCleared} tonnes</div>
+            <div className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">Waste Diverted</div>
+            <div className="text-lg font-black text-slate-900 font-mono mt-0.5">{CITY_STATS.tonnesGarbageCleared} tonnes</div>
           </div>
         </div>
       </div>
@@ -162,14 +146,14 @@ export default function CivicImpact({ issues, userProfile }: CivicImpactProps) {
       {/* Grid: Charts & Leaderboard */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Chart Card */}
-        <div className="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col h-[400px]">
-          <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+        <div className="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-5 flex flex-col h-[400px] shadow-xs">
+          <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
             <div>
-              <h4 className="text-sm font-semibold text-white flex items-center gap-1.5">
-                <TrendingUp className="h-4.5 w-4.5 text-emerald-400" />
+              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                <TrendingUp className="h-4.5 w-4.5 text-emerald-600" />
                 Community Resolution Track
               </h4>
-              <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">
+              <p className="text-[10px] text-slate-400 font-mono uppercase tracking-wider font-semibold">
                 Monthly aggregate of filed hazards vs completed physical repairs
               </p>
             </div>
@@ -180,33 +164,33 @@ export default function CivicImpact({ issues, userProfile }: CivicImpactProps) {
               <AreaChart data={MONTHLY_TRENDS} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorReported" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15}/>
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.12}/>
                     <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="colorResolved" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.12}/>
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="name" stroke="#475569" fontSize={10} fontFamily="monospace" />
-                <YAxis stroke="#475569" fontSize={10} fontFamily="monospace" />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '8px' }} labelClassName="text-white" />
-                <Area type="monotone" dataKey="reported" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorReported)" name="Reported Risks" />
-                <Area type="monotone" dataKey="resolved" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorResolved)" name="SLA Resolved" />
+                <XAxis dataKey="name" stroke="#64748b" fontSize={10} fontFamily="monospace" fontWeight="bold" />
+                <YAxis stroke="#64748b" fontSize={10} fontFamily="monospace" fontWeight="bold" />
+                <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '12px' }} labelClassName="text-slate-950 font-bold" />
+                <Area type="monotone" dataKey="reported" stroke="#ef4444" strokeWidth={2.5} fillOpacity={1} fill="url(#colorReported)" name="Reported Risks" />
+                <Area type="monotone" dataKey="resolved" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorResolved)" name="SLA Resolved" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Leaderboard Card */}
-        <div className="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col h-[400px]">
-          <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+        <div className="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-5 flex flex-col h-[400px] shadow-xs">
+          <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
             <div>
-              <h4 className="text-sm font-semibold text-white flex items-center gap-1.5">
+              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                 <Award className="h-4.5 w-4.5 text-amber-500" />
                 Ward Sentinel Leaderboard
               </h4>
-              <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">
+              <p className="text-[10px] text-slate-400 font-mono uppercase tracking-wider font-semibold">
                 Civic Champion Point Rankings
               </p>
             </div>
@@ -218,26 +202,26 @@ export default function CivicImpact({ issues, userProfile }: CivicImpactProps) {
                 key={idx}
                 className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
                   user.isUser
-                    ? 'bg-emerald-500/10 border-emerald-500/20'
-                    : 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-800/25'
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : 'bg-slate-50/60 border-slate-100 hover:bg-slate-100/50'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-black font-mono text-slate-500 w-4">
+                  <span className="text-xs font-black font-mono text-slate-400 w-4">
                     #{idx + 1}
                   </span>
-                  <div className="h-8 w-8 rounded-full overflow-hidden border border-slate-800 bg-slate-950">
+                  <div className="h-8 w-8 rounded-full overflow-hidden border border-slate-200 bg-white shadow-xs">
                     <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-200 block">{user.name}</span>
-                    <span className="text-[9px] font-mono text-slate-500">{user.badge}</span>
+                    <span className="text-xs font-bold text-slate-800 block">{user.name}</span>
+                    <span className="text-[9px] font-mono text-slate-400 font-bold">{user.badge}</span>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <span className="text-xs font-black text-emerald-400 font-mono block">{user.points} XP</span>
-                  <span className="text-[9px] text-slate-500 block">{user.verifications} verifies</span>
+                  <span className="text-xs font-black text-emerald-600 font-mono block">{user.points} XP</span>
+                  <span className="text-[9px] text-slate-400 block font-semibold">{user.verifications} verifies</span>
                 </div>
               </div>
             ))}
@@ -246,57 +230,57 @@ export default function CivicImpact({ issues, userProfile }: CivicImpactProps) {
       </div>
 
       {/* Before-and-After Proof Timeline Gallery */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-5 border-b border-slate-800 pb-3">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+        <div className="flex items-center justify-between mb-5 border-b border-slate-100 pb-3">
           <div>
-            <h4 className="text-sm font-semibold text-white flex items-center gap-1.5">
-              <Image className="h-4.5 w-4.5 text-cyan-400" />
+            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+              <Image className="h-4.5 w-4.5 text-cyan-600" />
               Before & After Community Resolution Gallery
             </h4>
-            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">
+            <p className="text-[10px] text-slate-400 font-mono uppercase tracking-wider font-semibold">
               Transparent verification loops displaying raw evidence vs physical repairs
             </p>
           </div>
         </div>
 
         {resolvedIssues.length === 0 ? (
-          <div className="text-center p-8 text-slate-500">
-            <p className="text-xs">No resolutions logged in this cycle yet. Officers are triaging open reports.</p>
+          <div className="text-center p-8 text-slate-400">
+            <p className="text-xs font-semibold">No resolutions logged in this cycle yet. Officers are triaging open reports.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {resolvedIssues.map((issue) => (
-              <div key={issue.id} className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
+              <div key={issue.id} className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/60 shadow-xs">
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">{issue.location.ward}</span>
-                    <h5 className="text-xs font-bold text-white mt-1">{issue.title}</h5>
+                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider font-bold">{issue.location.ward}</span>
+                    <h5 className="text-xs font-bold text-slate-800 mt-1">{issue.title}</h5>
                   </div>
-                  <span className="text-[9px] font-mono bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
+                  <span className="text-[9px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 font-bold">
                     VERIFIED RESOLUTION
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5">
-                  <div className="relative h-28 rounded-lg overflow-hidden border border-slate-800">
-                    <img src={issue.imageUrls[0]} alt="Before" className="w-full h-full object-cover" />
-                    <span className="absolute top-1.5 left-1.5 bg-rose-950/90 text-rose-400 text-[8px] font-mono px-1.5 py-0.5 rounded border border-rose-500/20">
+                  <div className="relative h-28 rounded-lg overflow-hidden border border-slate-200 bg-white">
+                    <img src={issue.imageUrls[0]} alt="Before" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <span className="absolute top-1.5 left-1.5 bg-rose-600 text-white text-[8px] font-mono font-bold px-1.5 py-0.5 rounded shadow-xs">
                       BEFORE
                     </span>
                   </div>
 
-                  <div className="relative h-28 rounded-lg overflow-hidden border border-slate-800">
+                  <div className="relative h-28 rounded-lg overflow-hidden border border-slate-200 bg-white">
                     {issue.resolvedImageUrl && (
-                      <img src={issue.resolvedImageUrl} alt="After" className="w-full h-full object-cover" />
+                      <img src={issue.resolvedImageUrl} alt="After" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     )}
-                    <span className="absolute top-1.5 left-1.5 bg-emerald-950/90 text-emerald-400 text-[8px] font-mono px-1.5 py-0.5 rounded border border-emerald-500/20">
+                    <span className="absolute top-1.5 left-1.5 bg-emerald-600 text-white text-[8px] font-mono font-bold px-1.5 py-0.5 rounded shadow-xs">
                       AFTER
                     </span>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-400 mt-3 leading-relaxed">
-                  <strong className="text-slate-300">Notes:</strong> "{issue.resolvedNote}"
+                <p className="text-[11px] text-slate-600 mt-3 leading-relaxed">
+                  <strong className="text-slate-800">Notes:</strong> "{issue.resolvedNote}"
                 </p>
               </div>
             ))}
@@ -305,37 +289,37 @@ export default function CivicImpact({ issues, userProfile }: CivicImpactProps) {
       </div>
 
       {/* Ward Badge Catalog */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <h4 className="text-sm font-semibold text-white mb-4 border-b border-slate-800 pb-3">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+        <h4 className="text-sm font-bold text-slate-900 mb-4 border-b border-slate-100 pb-3">
           Unlocks & Earnable Civic Badges
         </h4>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-slate-950/40 p-3.5 rounded-xl border border-slate-850 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-400">
+          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100 text-emerald-600">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <span className="text-xs font-bold text-slate-200 block">Civic Patrol</span>
+              <span className="text-xs font-bold text-slate-800 block">Civic Patrol</span>
               <p className="text-[10px] text-slate-500">Report first public threat</p>
             </div>
           </div>
 
-          <div className="bg-slate-950/40 p-3.5 rounded-xl border border-slate-850 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 text-cyan-400">
+          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-cyan-50 flex items-center justify-center border border-cyan-100 text-cyan-600">
               <Award className="h-5 w-5" />
             </div>
             <div>
-              <span className="text-xs font-bold text-slate-200 block">Eagle Eye</span>
+              <span className="text-xs font-bold text-slate-800 block">Eagle Eye</span>
               <p className="text-[10px] text-slate-500">Complete 10+ correct verifications</p>
             </div>
           </div>
 
-          <div className="bg-slate-950/40 p-3.5 rounded-xl border border-slate-850 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-purple-500/10 flex items-center justify-center border border-purple-500/20 text-purple-400">
+          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center border border-purple-100 text-purple-600">
               <TrendingUp className="h-5 w-5" />
             </div>
             <div>
-              <span className="text-xs font-bold text-slate-200 block">Green Guardian</span>
+              <span className="text-xs font-bold text-slate-800 block">Green Guardian</span>
               <p className="text-[10px] text-slate-500">Solve first illegal dumping hazard</p>
             </div>
           </div>

@@ -117,41 +117,41 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
   };
 
   return (
-    <div className="max-w-3xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl text-left">
-      <div className="p-6 border-b border-slate-800 bg-slate-900/50">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <ShieldAlert className="h-5 w-5 text-emerald-400 stroke-[2.5]" />
+    <div className="max-w-3xl mx-auto bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm text-left">
+      <div className="p-6 border-b border-slate-200 bg-slate-50/50">
+        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <ShieldAlert className="h-5 w-5 text-emerald-600 stroke-[2.5]" />
           Report Community Infrastructure Threat
         </h3>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-500 mt-1 font-medium">
           Each submission triggers the UrbanEye Gemini Automated Triage Agent to classify, deduplicate, and assign urgency indexes instantly.
         </p>
       </div>
 
-      <div className="p-6">
+      <div className="p-6 bg-white">
         {successMsg ? (
-          <div className="text-center p-8 bg-emerald-950/20 border border-emerald-500/20 rounded-xl">
-            <div className="h-12 w-12 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-950 shadow-lg shadow-emerald-500/10">
+          <div className="text-center p-8 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <div className="h-12 w-12 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 text-white shadow-md shadow-emerald-600/15">
               <Check className="h-6 w-6 stroke-[3]" />
             </div>
-            <h4 className="text-lg font-bold text-white">Report Successfully Synthesized</h4>
-            <p className="text-sm text-slate-300 mt-2 max-w-md mx-auto">{successMsg}</p>
-            <div className="text-xs text-slate-500 font-mono mt-4 animate-pulse">
+            <h4 className="text-md font-bold text-slate-900">Report Successfully Synthesized</h4>
+            <p className="text-xs text-slate-600 mt-2 max-w-md mx-auto">{successMsg}</p>
+            <div className="text-[10px] text-slate-400 font-mono mt-4 animate-pulse">
               Redirecting to primary sentinel dashboard...
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="flex items-center gap-2 p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-xs">
-                <AlertCircle className="h-4 w-4 shrink-0" />
+              <div className="flex items-center gap-2 p-3.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
                 <span>{error}</span>
               </div>
             )}
 
             {/* Quick Presets / Seed Simulators */}
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-2 font-mono">
+              <label className="text-xs font-bold text-slate-700 block mb-2 font-mono uppercase tracking-wider">
                 1-Click Quick Simulators (Skip image upload)
               </label>
               <div className="flex flex-wrap gap-2">
@@ -160,10 +160,10 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
                     key={p.id}
                     type="button"
                     onClick={() => selectPreset(p)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition ${
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition cursor-pointer ${
                       sampleType === p.id
-                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
-                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
                     }`}
                   >
                     ⚡ {p.name}
@@ -176,7 +176,7 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
               {/* Left Form: text fields */}
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
                     Issue Title (Optional)
                   </label>
                   <input
@@ -184,18 +184,18 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
                     placeholder="e.g. Ruptured sewer line flooding street"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full text-xs text-white p-2.5 bg-slate-950 rounded-xl border border-slate-800 focus:outline-none focus:border-emerald-500"
+                    className="w-full text-xs text-slate-900 p-2.5 bg-white rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500 shadow-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
                     Select Ward Location
                   </label>
                   <select
                     value={ward}
                     onChange={(e) => setWard(e.target.value)}
-                    className="w-full text-xs text-white p-2.5 bg-slate-950 rounded-xl border border-slate-800 focus:outline-none focus:border-emerald-500 font-mono"
+                    className="w-full text-xs text-slate-900 p-2.5 bg-white rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500 font-mono font-bold shadow-xs"
                   >
                     {WARDS_LIST.map((w) => (
                       <option key={w} value={w}>{w}</option>
@@ -204,7 +204,7 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
                     Geographical Landmark / Address
                   </label>
                   <input
@@ -212,18 +212,18 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
                     placeholder="e.g. Opposite Shell Station, Sector 2 lane"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    className="w-full text-xs text-white p-2.5 bg-slate-950 rounded-xl border border-slate-800 focus:outline-none focus:border-emerald-500"
+                    className="w-full text-xs text-slate-900 p-2.5 bg-white rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500 shadow-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
                     Category Override
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as any)}
-                    className="w-full text-xs text-white p-2.5 bg-slate-950 rounded-xl border border-slate-800 focus:outline-none focus:border-emerald-500"
+                    className="w-full text-xs text-slate-900 p-2.5 bg-white rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500 font-semibold shadow-xs"
                   >
                     <option value="auto">🤖 Auto-Determine via Computer Vision</option>
                     <option value="pothole">Pothole / Road Damage</option>
@@ -240,10 +240,10 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
               {/* Right Form: image drag-drop/preview & details */}
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
                     Visual Evidence (Image File)
                   </label>
-                  <div className="relative h-[190px] bg-slate-950 rounded-xl border border-dashed border-slate-800 hover:border-emerald-500/50 transition flex flex-col items-center justify-center p-4">
+                  <div className="relative h-[190px] bg-slate-50 rounded-xl border border-dashed border-slate-300 hover:border-emerald-500/50 transition flex flex-col items-center justify-center p-4">
                     {imageBase64 ? (
                       <div className="w-full h-full relative">
                         <img
@@ -254,22 +254,22 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
                         <button
                           type="button"
                           onClick={() => setImageBase64(null)}
-                          className="absolute top-2 right-2 bg-slate-900/90 hover:bg-red-500 text-white p-1 rounded-full text-xs font-bold transition"
+                          className="absolute top-2 right-2 bg-slate-900/90 hover:bg-red-600 text-white px-2 py-1 rounded-md text-[10px] font-bold transition shadow-xs"
                         >
                           ✕ Remove
                         </button>
                       </div>
                     ) : sampleType ? (
-                      <div className="text-center p-3 text-slate-400">
-                        <Check className="h-8 w-8 text-emerald-400 mx-auto mb-2 animate-bounce" />
-                        <p className="text-xs font-semibold text-white">Preset Image Trigger Configured</p>
+                      <div className="text-center p-3 text-slate-500">
+                        <Check className="h-8 w-8 text-emerald-600 mx-auto mb-2 animate-pulse" />
+                        <p className="text-xs font-bold text-slate-850">Preset Image Configured</p>
                         <p className="text-[10px] mt-1">High-resolution catalog assets will be appended dynamically by AI.</p>
                       </div>
                     ) : (
-                      <div className="text-center p-3 text-slate-500 cursor-pointer">
-                        <Image className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-                        <span className="text-xs font-medium text-slate-400 block">Drag & Drop or Click to Upload</span>
-                        <span className="text-[10px] text-slate-600 block mt-1">PNG, JPG up to 10MB</span>
+                      <div className="text-center p-3 text-slate-400 cursor-pointer">
+                        <Image className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+                        <span className="text-xs font-bold text-slate-700 block">Drag & Drop or Click to Upload</span>
+                        <span className="text-[10px] text-slate-400 block mt-1">PNG, JPG up to 10MB</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -282,7 +282,7 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
                     Describe Situation
                   </label>
                   <textarea
@@ -290,15 +290,15 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
                     placeholder="Provide specific details about the risk level, active damage, proximity to schools, hospitals or high traffic avenues..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full text-xs text-white p-2.5 bg-slate-950 rounded-xl border border-slate-800 focus:outline-none focus:border-emerald-500 resize-none h-[95px]"
+                    className="w-full text-xs text-slate-900 p-2.5 bg-white rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500 resize-none h-[95px] shadow-xs"
                   />
                 </div>
               </div>
             </div>
 
             {/* Submission button */}
-            <div className="border-t border-slate-850 pt-4 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-mono">
+            <div className="border-t border-slate-100 pt-4 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono font-bold">
                 <Sparkles className="h-3.5 w-3.5 text-cyan-500" />
                 Deduplication scan will run immediately on submission.
               </div>
@@ -306,11 +306,11 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
               <button
                 type="submit"
                 disabled={loading}
-                className="relative flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold px-5 py-2.5 text-xs hover:from-emerald-400 hover:to-cyan-400 transition-all duration-200 cursor-pointer shadow-lg shadow-emerald-500/10 disabled:opacity-50"
+                className="relative flex items-center gap-2 rounded-xl bg-emerald-600 text-white font-extrabold px-5 py-2.5 text-xs hover:bg-emerald-500 transition-all duration-200 cursor-pointer shadow-md disabled:opacity-50"
               >
                 {loading ? (
                   <>
-                    <span className="animate-spin h-3.5 w-3.5 rounded-full border-2 border-slate-950 border-t-transparent" />
+                    <span className="animate-spin h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent" />
                     AI Triage active...
                   </>
                 ) : (

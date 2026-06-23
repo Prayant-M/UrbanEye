@@ -279,40 +279,65 @@ let issues: Issue[] = [
   }
 ];
 
-// Profile data
-let userProfile: UserProfile = {
-  id: 'user-007',
-  name: 'Ananya Sharma',
-  email: 'ananya.sharma@gmail.com',
-  role: 'citizen',
-  points: 420,
-  streak: 5,
-  reportsCount: 4,
-  verificationsCount: 18,
-  badges: [
-    {
-      id: 'badge-1',
-      name: 'Civic Patrol',
-      description: 'Reported your first valid neighborhood issue',
-      icon: 'Eye',
-      earnedAt: '2026-06-10T11:00:00Z'
-    },
-    {
-      id: 'badge-2',
-      name: 'Eagle Eye',
-      description: 'Achieved 10+ correct community issue verifications',
-      icon: 'Shield',
-      earnedAt: '2026-06-18T15:30:00Z'
-    },
-    {
-      id: 'badge-3',
-      name: 'Green Guardian',
-      description: 'Reported and helped resolve a major sanitation or waste dumping hazard',
-      icon: 'Leaf',
-      earnedAt: '2026-06-22T16:45:00Z'
-    }
-  ]
+// Profile database definitions
+const profiles: Record<string, UserProfile> = {
+  'user-007': {
+    id: 'user-007',
+    name: 'Ananya Sharma',
+    email: 'ananya.sharma@gmail.com',
+    role: 'citizen',
+    points: 420,
+    streak: 5,
+    reportsCount: 4,
+    verificationsCount: 18,
+    badges: [
+      {
+        id: 'badge-1',
+        name: 'Civic Patrol',
+        description: 'Reported your first valid neighborhood issue',
+        icon: 'Eye',
+        earnedAt: '2026-06-10T11:00:00Z'
+      },
+      {
+        id: 'badge-2',
+        name: 'Eagle Eye',
+        description: 'Achieved 10+ correct community issue verifications',
+        icon: 'Shield',
+        earnedAt: '2026-06-18T15:30:00Z'
+      },
+      {
+        id: 'badge-3',
+        name: 'Green Guardian',
+        description: 'Reported and helped resolve a major sanitation or waste dumping hazard',
+        icon: 'Leaf',
+        earnedAt: '2026-06-22T16:45:00Z'
+      }
+    ]
+  },
+  'admin-101': {
+    id: 'admin-101',
+    name: 'Officer Ramesh Kumar',
+    email: 'ramesh.kumar@bbmp.gov.in',
+    role: 'officer',
+    department: 'Public Works Department (PWD)',
+    points: 1500,
+    streak: 12,
+    reportsCount: 0,
+    verificationsCount: 145,
+    badges: [
+      {
+        id: 'badge-4',
+        name: 'SLA Champion',
+        description: 'Maintained >95% SLA clearance rate',
+        icon: 'Award',
+        earnedAt: '2026-05-12T10:00:00Z'
+      }
+    ]
+  }
 };
+
+let activeProfileId = 'user-007';
+let userProfile: UserProfile = { ...profiles['user-007'] };
 
 // Predictive Insights
 let insights: InsightCard[] = [
@@ -375,6 +400,21 @@ app.get('/api/issues', (req, res) => {
 
 app.get('/api/profile', (req, res) => {
   res.json(userProfile);
+});
+
+// Login as one of the pre-defined profiles
+app.post('/api/profile/login', (req, res) => {
+  const { profileId } = req.body;
+  
+  // Sync current memory state to profiles dictionary
+  profiles[activeProfileId] = { ...userProfile };
+  
+  if (profiles[profileId]) {
+    activeProfileId = profileId;
+    userProfile = { ...profiles[profileId] };
+    return res.json(userProfile);
+  }
+  res.status(400).json({ error: 'Invalid profile ID' });
 });
 
 app.get('/api/insights', (req, res) => {

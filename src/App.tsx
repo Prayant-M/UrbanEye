@@ -21,7 +21,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Custom toast message for state changes
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
 
   const showToast = (message: string, type: 'success' | 'info' = 'success') => {
@@ -35,11 +34,9 @@ export default function App() {
       if (!res.ok) throw new Error('Failed to retrieve issues');
       const data = await res.json();
       setIssues(data);
-      // Auto-select first issue if none selected
       if (data.length > 0 && !selectedIssue) {
         setSelectedIssue(data[0]);
       } else if (selectedIssue) {
-        // Keep selected issue details updated
         const updated = data.find((i: Issue) => i.id === selectedIssue.id);
         if (updated) setSelectedIssue(updated);
       }
@@ -79,21 +76,20 @@ export default function App() {
     initData();
   }, []);
 
-  const handleToggleRole = async () => {
-    if (!userProfile) return;
-    const targetRole = userProfile.role === 'citizen' ? 'officer' : 'citizen';
+  const handleLoginProfile = async (profileId: string) => {
     try {
-      const res = await fetch('/api/profile/role', {
+      const res = await fetch('/api/profile/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: targetRole })
+        body: JSON.stringify({ profileId })
       });
-      if (!res.ok) throw new Error('Failed to toggle role');
+      if (!res.ok) throw new Error('Profile switch failed');
       const data = await res.json();
       setUserProfile(data);
-      showToast(`Swapped view to ${targetRole === 'officer' ? 'Municipal Officer Dashboard' : 'Citizen Portal'}!`, 'info');
+      showToast(`Logged in as ${data.name} (${data.role === 'officer' ? 'Officer / Admin' : 'User / Citizen'})!`, 'success');
     } catch (err: any) {
       console.error(err);
+      showToast('Error switching profiles', 'info');
     }
   };
 
@@ -103,7 +99,6 @@ export default function App() {
       if (!res.ok) throw new Error('Upvote registration failed');
       const updatedIssue = await res.json();
       
-      // Update local issues state
       setIssues(prev => prev.map(i => i.id === id ? updatedIssue : i));
       setSelectedIssue(updatedIssue);
       showToast('You upvoted this hazard! Community priority score raised.', 'success');
@@ -149,7 +144,6 @@ export default function App() {
       setIssues(prev => prev.map(i => i.id === id ? updatedIssue : i));
       setSelectedIssue(updatedIssue);
       
-      // Refresh profile to claim XP rewards if resolved
       if (params.actionType === 'resolve') {
         await fetchProfile();
         showToast('Hazard successfully cleared! Proof-of-repair logged and citizens notified.', 'success');
@@ -174,10 +168,8 @@ export default function App() {
   };
 
   const handleIssueReported = (newIssue: any, message: string) => {
-    // Add reported issue to top of the list
     setIssues(prev => [newIssue, ...prev]);
     setSelectedIssue(newIssue);
-    // Reload profile for XP points update
     fetchProfile();
   };
 
@@ -191,14 +183,14 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500/30">
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-emerald-500/10">
       {/* Toast alert */}
       {toast && (
-        <div className="fixed top-20 right-4 z-[99] max-w-sm p-4 bg-slate-900 border border-emerald-500/30 rounded-xl shadow-2xl flex items-center gap-2.5 animate-in slide-in-from-top-4 duration-300">
-          <div className="h-6 w-6 rounded-full bg-emerald-500/15 flex items-center justify-center text-emerald-400 font-bold shrink-0">
+        <div className="fixed top-20 right-4 z-[99] max-w-sm p-4 bg-white border border-emerald-200 rounded-xl shadow-lg flex items-center gap-2.5 animate-in slide-in-from-top-4 duration-300">
+          <div className="h-6 w-6 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold shrink-0">
             <Check className="h-3.5 w-3.5 stroke-[3]" />
           </div>
-          <span className="text-xs text-slate-200 font-medium leading-normal">{toast.message}</span>
+          <span className="text-xs text-slate-700 font-bold leading-normal">{toast.message}</span>
         </div>
       )}
 
@@ -207,7 +199,7 @@ export default function App() {
         currentTab={currentTab}
         setTab={setTab}
         userProfile={userProfile}
-        toggleRole={handleToggleRole}
+        onLoginProfile={handleLoginProfile}
         onOpenAssistant={() => setAssistantOpen(prev => !prev)}
       />
 
@@ -216,14 +208,14 @@ export default function App() {
         <div className="flex-1 flex flex-col overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full custom-scrollbar">
           {loading ? (
             <div className="flex-1 flex flex-col items-center justify-center py-20">
-              <span className="animate-spin h-8 w-8 rounded-full border-3 border-emerald-500 border-t-transparent" />
-              <p className="text-sm text-slate-500 mt-3 font-mono">Initializing Civic Sentinel Engine...</p>
+              <span className="animate-spin h-8 w-8 rounded-full border-3 border-emerald-600 border-t-transparent" />
+              <p className="text-xs text-slate-500 mt-3 font-mono font-bold">Initializing Civic Sentinel Engine...</p>
             </div>
           ) : error ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 bg-rose-500/5 border border-rose-500/10 rounded-2xl max-w-md mx-auto my-12">
-              <AlertCircle className="h-10 w-10 text-rose-500 mb-2" />
-              <h4 className="text-sm font-bold text-white">Initialization Error</h4>
-              <p className="text-xs text-slate-400 mt-1 text-center leading-relaxed">{error}</p>
+            <div className="flex-1 flex flex-col items-center justify-center p-6 bg-rose-50 border border-rose-200 rounded-2xl max-w-md mx-auto my-12 shadow-xs">
+              <AlertCircle className="h-10 w-10 text-rose-600 mb-2" />
+              <h4 className="text-sm font-bold text-rose-900">Initialization Error</h4>
+              <p className="text-xs text-slate-500 mt-1 text-center leading-relaxed font-semibold">{error}</p>
             </div>
           ) : (
             <>
@@ -231,8 +223,8 @@ export default function App() {
               {currentTab === 'dashboard' && (
                 <div className="space-y-6">
                   {/* Category Filter Tray */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-3.5 rounded-2xl border border-slate-850">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
                       <Filter className="h-4 w-4 text-slate-400" />
                       Filter Ward Priorities:
                     </div>
@@ -242,10 +234,10 @@ export default function App() {
                         <button
                           key={tab.value}
                           onClick={() => setSelectedCategory(tab.value)}
-                          className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all ${
+                          className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                             selectedCategory === tab.value
-                              ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/10'
-                              : 'bg-slate-950/40 border-slate-800/80 text-slate-400 hover:text-white hover:border-slate-700'
+                              ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                              : 'bg-slate-50 border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-300'
                           }`}
                         >
                           {tab.label}
@@ -254,7 +246,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Two-part layout: Interactive Vector Map above, Triage Queue below */}
+                  {/* Two-part layout: Interactive Map above, Triage Queue below */}
                   <div className="h-[480px] w-full min-h-[400px]">
                     <CivicMap
                       issues={issues}
@@ -264,7 +256,7 @@ export default function App() {
                     />
                   </div>
 
-                  <div className="pt-2 border-t border-slate-900">
+                  <div className="pt-2 border-t border-slate-200">
                     <TriageQueue
                       issues={selectedCategory === 'all' ? issues : issues.filter(i => i.category === selectedCategory)}
                       selectedIssue={selectedIssue}
@@ -314,7 +306,7 @@ export default function App() {
 
         {/* Dynamic Chatbot Drawer panel */}
         {assistantOpen && (
-          <div className="shrink-0 border-l border-slate-800 animate-in slide-in-from-right duration-300">
+          <div className="shrink-0 border-l border-slate-200 animate-in slide-in-from-right duration-300">
             <CivicAssistant onClose={() => setAssistantOpen(false)} />
           </div>
         )}
