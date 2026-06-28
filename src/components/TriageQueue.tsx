@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Plus
 } from 'lucide-react';
+import { ScanSearch, ShieldCheck, XCircle, Radar, Image as ImageIcon, Ban, CheckCheck } from 'lucide-react';
 import { Issue, IssueStatus, UserProfile } from '../types';
 
 interface TriageQueueProps {
@@ -445,6 +446,248 @@ export default function TriageQueue({
             <p className="text-[11px] text-slate-400 mt-1 max-w-sm">Pick a pin from the live map or select an active report from the left queue to view detailed diagnostics and take action.</p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// REVIEW QUEUE — Human-in-the-loop AI moderation (officer only)
+// ──────────────────────────────────────────────────────────────
+export interface ReviewInsights {
+  imageDetection: { label: string; confidence: number }[];
+  authenticity: { manipulated: boolean; score: number; verdict: string };
+  socialMedia: { source: string; handle: string; snippet: string; matchConfidence: number; timeAgo: string }[];
+  duplicateRisk: number;
+  aiRecommendation: 'approve' | 'reject';
+  aiSummary: string;
+}
+
+export interface PendingReport {
+  id: string;
+  reporterName: string;
+  submittedAt: string;
+  insights: ReviewInsights;
+  draftIssue: Issue;
+}
+
+export interface ReviewLog {
+  approved: { id: string; title: string; ward: string; decidedAt: string; officer: string }[];
+  discarded: { id: string; title: string; ward: string; reason: string; decidedAt: string; officer: string }[];
+}
+
+interface ReviewQueueProps {
+  pending: PendingReport[];
+  log: ReviewLog;
+  busyId: string | null;
+  onDecision: (id: string, decision: 'approve' | 'reject') => void;
+}
+
+function Confidence({ value }: { value: number }) {
+  const pct = Math.round(value * 100);
+  const tone = pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500';
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-[10px] font-mono font-bold text-slate-500 w-8 text-right">{pct}%</span>
+    </div>
+  );
+}
+
+export function ReviewQueue({ pending, log, busyId, onDecision }: ReviewQueueProps) {
+  return (
+    <div className="space-y-6 text-left">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-white via-rose-50/30 to-white border border-rose-100 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <ScanSearch className="h-5 w-5 text-rose-500 stroke-[2.5]" />
+            AI Review Console — Human in the Loop
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Every citizen upload is enriched by the AI engine (image-authenticity detection + social-media corroboration). You decide what goes live.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {[
+            { label: 'Pending', value: pending.length, cls: 'bg-amber-50 border-amber-200 text-amber-700' },
+            { label: 'Approved', value: log.approved.length, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+            { label: 'Discarded', value: log.discarded.length, cls: 'bg-rose-50 border-rose-200 text-rose-700' },
+          ].map((s) => (
+            <div key={s.label} className={`rounded-xl border px-3 py-1.5 text-center ${s.cls}`}>
+              <div className="text-base font-black font-mono leading-none">{s.value}</div>
+              <div className="text-[9px] font-bold uppercase tracking-wider mt-0.5">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pending cards */}
+      {pending.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center shadow-xs">
+          <CheckCheck className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
+          <h4 className="text-sm font-bold text-slate-700">Queue clear</h4>
+          <p className="text-xs text-slate-400 mt-1">No uploads awaiting review. New citizen reports surface here automatically.</p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {pending.map((p) => {
+            const issue = p.draftIssue;
+            const ins = p.insights;
+            const recApprove = ins.aiRecommendation === 'approve';
+            const busy = busyId === p.id;
+            return (
+              <div key={p.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                <div className="grid grid-cols-1 lg:grid-cols-12">
+                  {/* Left: evidence */}
+                  <div className="lg:col-span-4 bg-slate-50/60 p-4 border-b lg:border-b-0 lg:border-r border-slate-100">
+                    <div className="h-44 rounded-xl overflow-hidden border border-slate-200 bg-white relative">
+                      <img src={issue.imageUrls[0]} alt={issue.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <span className="absolute top-2 left-2 bg-slate-900/80 text-white text-[9px] font-mono font-bold px-2 py-0.5 rounded">
+                        UPLOAD · {issue.location.ward.split(' - ')[1] || issue.location.ward}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-900 mt-3 leading-tight">{issue.title}</h4>
+                    <p className="text-[11px] text-slate-500 mt-1 line-clamp-3 leading-relaxed">{issue.description}</p>
+                    <div className="flex items-center gap-2 mt-2 text-[10px] font-mono text-slate-400">
+                      <span>by {p.reporterName}</span>
+                      <span>•</span>
+                      <span>Sev {issue.severity}/5</span>
+                      <span>•</span>
+                      <span>{new Date(p.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+
+                  {/* Right: AI insights */}
+                  <div className="lg:col-span-8 p-4 space-y-4">
+                    {/* AI recommendation */}
+                    <div className={`rounded-xl border p-3 ${recApprove ? 'bg-emerald-50/60 border-emerald-200' : 'bg-rose-50/60 border-rose-200'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Sparkles className={`h-4 w-4 ${recApprove ? 'text-emerald-600' : 'text-rose-600'}`} />
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700">
+                          AI recommends: {recApprove ? 'Approve' : 'Reject'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">{ins.aiSummary}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Image detection */}
+                      <div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider mb-2">
+                          <ImageIcon className="h-3.5 w-3.5 text-cyan-600" /> AI Image Detection
+                        </div>
+                        <div className="space-y-2">
+                          {ins.imageDetection.map((d, i) => (
+                            <div key={i}>
+                              <div className="text-[11px] font-semibold text-slate-700 mb-0.5">{d.label}</div>
+                              <Confidence value={d.confidence} />
+                            </div>
+                          ))}
+                        </div>
+                        <div className={`mt-2 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${ins.authenticity.manipulated ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                          <ShieldCheck className="h-3 w-3" /> {ins.authenticity.verdict}
+                        </div>
+                      </div>
+
+                      {/* Social media scraping */}
+                      <div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider mb-2">
+                          <Radar className="h-3.5 w-3.5 text-indigo-600" /> Social Media Corroboration
+                        </div>
+                        <div className="space-y-2">
+                          {ins.socialMedia.map((s, i) => (
+                            <div key={i} className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-slate-700">{s.source}</span>
+                                <span className="text-[9px] font-mono text-slate-400">{s.timeAgo}</span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 leading-snug mt-0.5">"{s.snippet}"</p>
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-[9px] font-mono text-indigo-500">{s.handle}</span>
+                                <span className="text-[9px] font-mono font-bold text-slate-500">match {Math.round(s.matchConfidence * 100)}%</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-2 text-[10px] font-mono text-slate-400">
+                          Duplicate risk: <span className={`font-bold ${ins.duplicateRisk > 0.5 ? 'text-rose-600' : 'text-emerald-600'}`}>{Math.round(ins.duplicateRisk * 100)}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Decision */}
+                    <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                      <button
+                        onClick={() => onDecision(p.id, 'reject')}
+                        disabled={busy}
+                        className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer disabled:opacity-50"
+                      >
+                        <XCircle className="h-4 w-4" /> False — Discard
+                      </button>
+                      <button
+                        onClick={() => onDecision(p.id, 'approve')}
+                        disabled={busy}
+                        className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 transition cursor-pointer disabled:opacity-50 shadow-xs"
+                      >
+                        <CheckCircle className="h-4 w-4 stroke-[2.5]" /> True — Approve & Pin
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Approved + Discarded logs */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+          <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 mb-3 border-b border-slate-100 pb-3">
+            <CheckCheck className="h-4.5 w-4.5 text-emerald-600" /> Approved & Live
+          </h4>
+          {log.approved.length === 0 ? (
+            <p className="text-xs text-slate-400 py-4 text-center">Nothing published yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {log.approved.map((a) => (
+                <div key={a.id + a.decidedAt} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-slate-800 truncate">{a.title}</div>
+                    <div className="text-[10px] text-slate-400 font-mono">{a.ward.split(' - ')[1] || a.ward} · {a.officer}</div>
+                  </div>
+                  <span className="text-[9px] font-mono bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold shrink-0">PINNED</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+          <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 mb-3 border-b border-slate-100 pb-3">
+            <Ban className="h-4.5 w-4.5 text-rose-500" /> Discarded
+          </h4>
+          {log.discarded.length === 0 ? (
+            <p className="text-xs text-slate-400 py-4 text-center">No rejected uploads.</p>
+          ) : (
+            <div className="space-y-2">
+              {log.discarded.map((d) => (
+                <div key={d.id + d.decidedAt} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-rose-50/40 border border-rose-100">
+                  <XCircle className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-slate-800 truncate">{d.title}</div>
+                    <div className="text-[10px] text-slate-500 line-clamp-1">{d.reason}</div>
+                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{d.ward.split(' - ')[1] || d.ward} · {d.officer}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

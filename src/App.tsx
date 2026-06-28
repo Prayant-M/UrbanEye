@@ -1,19 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
+import Landing from './components/Landing';
+import CityView from './components/CityView';
 import CivicMap from './components/CivicMap';
-import TriageQueue from './components/TriageQueue';
+import TriageQueue, { ReviewQueue, PendingReport, ReviewLog } from './components/TriageQueue';
 import ReportForm from './components/ReportForm';
 import CivicImpact from './components/CivicImpact';
 import AIPredictions from './components/AIPredictions';
 import CivicAssistant from './components/CivicAssistant';
+import ProfileSection from './components/ProfileSection';
 import { Issue, UserProfile, InsightCard } from './types';
-import { ShieldAlert, AlertCircle, Bot, Activity, Sparkles, Filter, ChevronRight, Check } from 'lucide-react';
+import { AlertCircle, Filter, Check } from 'lucide-react';
 
 export default function App() {
-  const [currentTab, setTab] = useState('dashboard');
+  // null until the user picks a role on the landing screen
+  const [role, setRole] = useState<'citizen' | 'officer' | null>(null);
+  const [currentTab, setTab] = useState('city');
   const [issues, setIssues] = useState<Issue[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [insights, setInsights] = useState<InsightCard[]>([]);
+  const [pending, setPending] = useState<PendingReport[]>([]);
+  const [reviewLog, setReviewLog] = useState<ReviewLog>({ approved: [], discarded: [] });
+  const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
   
@@ -67,14 +75,50 @@ export default function App() {
     }
   };
 
+  const fetchPending = async () => {
+    try {
+      const [pRes, lRes] = await Promise.all([fetch('/api/pending'), fetch('/api/review-log')]);
+      if (pRes.ok) setPending(await pRes.json());
+      if (lRes.ok) setReviewLog(await lRes.json());
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     const initData = async () => {
       setLoading(true);
-      await Promise.all([fetchIssues(), fetchProfile(), fetchInsights()]);
+      await Promise.all([fetchIssues(), fetchProfile(), fetchInsights(), fetchPending()]);
       setLoading(false);
     };
     initData();
   }, []);
+
+  const handleReviewDecision = async (id: string, decision: 'approve' | 'reject') => {
+    setReviewBusyId(id);
+    try {
+      const res = await fetch(`/api/pending/${id}/decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision, officer: userProfile?.name })
+      });
+      if (!res.ok) throw new Error('Decision failed');
+      const data = await res.json();
+      setPending(data.pending);
+      setReviewLog(data.log);
+      if (decision === 'approve') {
+        await fetchIssues(); // publish live pin to the shared map (both profiles)
+        showToast('Approved — published to the live map and routed to the department.', 'success');
+      } else {
+        showToast('Report discarded. Moved to the rejected log.', 'info');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Could not record the decision.', 'info');
+    } finally {
+      setReviewBusyId(null);
+    }
+  };
 
   const handleLoginProfile = async (profileId: string) => {
     try {
@@ -91,6 +135,17 @@ export default function App() {
       console.error(err);
       showToast('Error switching profiles', 'info');
     }
+  };
+
+  const enterAsRole = async (selected: 'citizen' | 'officer') => {
+    setRole(selected);
+    setTab('dashboard');
+    await handleLoginProfile(selected === 'citizen' ? 'user-007' : 'admin-101');
+  };
+
+  const exitToLanding = () => {
+    setRole(null);
+    setAssistantOpen(false);
   };
 
   const handleUpvote = async (id: string) => {
@@ -167,10 +222,11 @@ export default function App() {
     }
   };
 
-  const handleIssueReported = (newIssue: any, message: string) => {
-    setIssues(prev => [newIssue, ...prev]);
-    setSelectedIssue(newIssue);
-    fetchProfile();
+  // A citizen upload now goes to the officer review queue (not a live pin yet).
+  const handleIssueReported = () => {
+    fetchProfile();   // points updated
+    fetchPending();   // surface it in the officer review queue
+    fetchIssues();    // catch auto-merged duplicates
   };
 
   const CATEGORY_TABS = [
@@ -181,6 +237,13 @@ export default function App() {
     { value: 'garbage', label: 'Garbage accumulation' },
     { value: 'drainage', label: 'Clogged Drainage' }
   ];
+
+  // Landing gate — pick a role before entering the app
+  if (!role) {
+    return <Landing onSelectRole={enterAsRole} />;
+  }
+
+  const isOfficer = role === 'officer';
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-emerald-500/10">
@@ -196,10 +259,11 @@ export default function App() {
 
       {/* Header bar */}
       <Navbar
+        role={role}
         currentTab={currentTab}
         setTab={setTab}
         userProfile={userProfile}
-        onLoginProfile={handleLoginProfile}
+        onExit={exitToLanding}
         onOpenAssistant={() => setAssistantOpen(prev => !prev)}
       />
 
@@ -219,6 +283,15 @@ export default function App() {
             </div>
           ) : (
             <>
+              {/* CITY TAB: 3D city (citizen only) */}
+              {currentTab === 'city' && !isOfficer && (
+                <CityView
+                  issues={issues}
+                  onSelectIssue={setSelectedIssue}
+                  setTab={setTab}
+                />
+              )}
+
               {/* PRIMARY TAB: Dashboard View */}
               {currentTab === 'dashboard' && (
                 <div className="space-y-6">
@@ -270,8 +343,20 @@ export default function App() {
                 </div>
               )}
 
-              {/* REPORT TAB: Hazard reporting form */}
-              {currentTab === 'report' && (
+              {/* REVIEW TAB: human-in-the-loop AI moderation (officer only) */}
+              {currentTab === 'review' && isOfficer && (
+                <div className="py-2">
+                  <ReviewQueue
+                    pending={pending}
+                    log={reviewLog}
+                    busyId={reviewBusyId}
+                    onDecision={handleReviewDecision}
+                  />
+                </div>
+              )}
+
+              {/* REPORT TAB: Hazard reporting form (citizen only) */}
+              {currentTab === 'report' && !isOfficer && (
                 <div className="py-2">
                   <ReportForm
                     userProfile={userProfile}
@@ -291,12 +376,23 @@ export default function App() {
                 </div>
               )}
 
-              {/* PREDICTIONS TAB: Deep Gemini predictive insights */}
-              {currentTab === 'predictions' && (
+              {/* PREDICTIONS TAB: Deep Gemini predictive insights (officer only) */}
+              {currentTab === 'predictions' && isOfficer && (
                 <div className="py-2">
                   <AIPredictions
                     insights={insights}
                     onTriggerDiagnostics={handleTriggerDiagnostics}
+                  />
+                </div>
+              )}
+
+              {/* PROFILE TAB: User/Admin profile section */}
+              {currentTab === 'profile' && (
+                <div className="py-2">
+                  <ProfileSection
+                    userProfile={userProfile}
+                    issues={issues}
+                    onSwitchTab={setTab}
                   />
                 </div>
               )}

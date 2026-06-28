@@ -7,6 +7,7 @@ import {
   Zap,
   Flame,
   TrendingUp,
+  Trophy,
   Image,
   Sparkles,
 } from 'lucide-react';
@@ -34,16 +35,39 @@ const MONTHLY_TRENDS = [
   { name: 'Jun', reported: 110, resolved: 94 }
 ];
 
-const LEADERBOARD = [
-  { name: 'David M.', points: 1250, reports: 14, verifications: 45, badge: 'Civic Gladiator', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150' },
-  { name: 'Samantha Rao', points: 980, reports: 11, verifications: 38, badge: 'Pothole Exterminator', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150' },
-  { name: 'Anil K.', points: 840, reports: 9, verifications: 29, badge: 'Ward Watcher', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150' },
-  { name: 'Ananya Sharma', points: 420, reports: 4, verifications: 18, badge: 'Eagle Eye', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150', isUser: true },
-  { name: 'Meera Deshmukh', points: 380, reports: 3, verifications: 15, badge: 'Active Citizen', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=150' }
+interface LeaderRow {
+  name: string; points: number; reports: number; verifications: number;
+  badge: string; avatar: string; delta: number; isUser?: boolean;
+}
+
+const LEADERBOARD: LeaderRow[] = [
+  { name: 'David M.', points: 1250, reports: 14, verifications: 45, badge: 'Civic Gladiator', delta: 0, avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150' },
+  { name: 'Samantha Rao', points: 980, reports: 11, verifications: 38, badge: 'Pothole Exterminator', delta: 1, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150' },
+  { name: 'Anil K.', points: 840, reports: 9, verifications: 29, badge: 'Ward Watcher', delta: -1, avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150' },
+  { name: 'Ananya Sharma', points: 420, reports: 4, verifications: 18, badge: 'Eagle Eye', delta: 2, avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150', isUser: true },
+  { name: 'Meera Deshmukh', points: 380, reports: 3, verifications: 15, badge: 'Active Citizen', delta: 0, avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=150' }
+];
+
+const PODIUM_STYLE = [
+  { ring: 'border-amber-400', chip: 'bg-amber-400 text-amber-950', medal: '🥇', h: 'h-20' },
+  { ring: 'border-slate-300', chip: 'bg-slate-300 text-slate-800', medal: '🥈', h: 'h-14' },
+  { ring: 'border-orange-400', chip: 'bg-orange-400 text-orange-950', medal: '🥉', h: 'h-12' },
 ];
 
 export default function CivicImpact({ issues, userProfile }: CivicImpactProps) {
   const resolvedIssues = issues.filter(i => i.status === 'resolved');
+
+  // Live leaderboard — fold the active citizen's real points into the board, then re-rank
+  const board: LeaderRow[] = LEADERBOARD
+    .map(row =>
+      row.isUser && userProfile && userProfile.role === 'citizen'
+        ? { ...row, name: userProfile.name, points: userProfile.points, reports: userProfile.reportsCount, verifications: userProfile.verificationsCount }
+        : row
+    )
+    .sort((a, b) => b.points - a.points);
+  const topPoints = board[0]?.points || 1;
+  const userRank = board.findIndex(r => r.isUser) + 1;
+  const podium = board.slice(0, 3);
 
   return (
     <div className="space-y-6 text-left">
@@ -146,7 +170,7 @@ export default function CivicImpact({ issues, userProfile }: CivicImpactProps) {
       {/* Grid: Charts & Leaderboard */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Chart Card */}
-        <div className="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-5 flex flex-col h-[400px] shadow-xs">
+        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 flex flex-col h-[420px] shadow-xs">
           <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
             <div>
               <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
@@ -183,46 +207,68 @@ export default function CivicImpact({ issues, userProfile }: CivicImpactProps) {
         </div>
 
         {/* Leaderboard Card */}
-        <div className="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-5 flex flex-col h-[400px] shadow-xs">
-          <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-            <div>
-              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                <Award className="h-4.5 w-4.5 text-amber-500" />
-                Ward Sentinel Leaderboard
-              </h4>
-              <p className="text-[10px] text-slate-400 font-mono uppercase tracking-wider font-semibold">
-                Civic Champion Point Rankings
-              </p>
-            </div>
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-5 flex flex-col h-[420px] shadow-xs">
+          <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
+            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+              <Trophy className="h-4.5 w-4.5 text-amber-500" />
+              Civic Champions — This Week
+            </h4>
+            {userRank > 0 && (
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                You're #{userRank}
+              </span>
+            )}
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
-            {LEADERBOARD.map((user, idx) => (
+          {/* Podium */}
+          <div className="flex items-end justify-center gap-2 mb-4">
+            {[1, 0, 2].map((pi) => {
+              const u = podium[pi];
+              if (!u) return null;
+              const st = PODIUM_STYLE[pi];
+              return (
+                <div key={pi} className="flex flex-col items-center w-1/3">
+                  <div className={`relative h-11 w-11 rounded-full overflow-hidden border-2 ${st.ring} bg-white shadow-sm`}>
+                    <img src={u.avatar} alt={u.name} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                    <span className="absolute -bottom-1 -right-1 text-sm">{st.medal}</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-800 mt-1.5 truncate max-w-full">{u.name.split(' ')[0]}</span>
+                  <span className="text-[10px] font-mono font-black text-emerald-600">{u.points}</span>
+                  <div className={`mt-1 w-full rounded-t-md ${st.h} ${u.isUser ? 'bg-emerald-400' : 'bg-slate-200'}`} />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Ranked list */}
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar border-t border-slate-100 pt-3">
+            {board.map((user, idx) => (
               <div
-                key={idx}
-                className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
-                  user.isUser
-                    ? 'bg-emerald-50 border-emerald-200'
-                    : 'bg-slate-50/60 border-slate-100 hover:bg-slate-100/50'
+                key={user.name}
+                className={`flex items-center gap-2.5 p-2 rounded-xl border transition ${
+                  user.isUser ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50/60 border-slate-100 hover:bg-slate-100/50'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-black font-mono text-slate-400 w-4">
-                    #{idx + 1}
-                  </span>
-                  <div className="h-8 w-8 rounded-full overflow-hidden border border-slate-200 bg-white shadow-xs">
-                    <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-800 block">{user.name}</span>
-                    <span className="text-[9px] font-mono text-slate-400 font-bold">{user.badge}</span>
-                  </div>
+                <span className="text-xs font-black font-mono text-slate-400 w-5 text-center">{idx + 1}</span>
+                <div className="h-8 w-8 rounded-full overflow-hidden border border-slate-200 bg-white shrink-0">
+                  <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                 </div>
-
-                <div className="text-right">
-                  <span className="text-xs font-black text-emerald-600 font-mono block">{user.points} XP</span>
-                  <span className="text-[9px] text-slate-400 block font-semibold">{user.verifications} verifies</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-800 truncate">{user.name}</span>
+                    {user.delta !== 0 && (
+                      <span className={`text-[9px] font-bold font-mono ${user.delta > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                        {user.delta > 0 ? `▲${user.delta}` : `▼${Math.abs(user.delta)}`}
+                      </span>
+                    )}
+                  </div>
+                  {/* points bar relative to leader */}
+                  <div className="h-1 bg-slate-200 rounded-full overflow-hidden mt-1">
+                    <div className={`h-full rounded-full ${user.isUser ? 'bg-emerald-500' : 'bg-slate-400'}`} style={{ width: `${(user.points / topPoints) * 100}%` }} />
+                  </div>
+                  <div className="text-[9px] text-slate-400 font-mono mt-0.5">{user.reports} reports · {user.verifications} verifies</div>
                 </div>
+                <span className="text-xs font-black text-emerald-600 font-mono shrink-0">{user.points}</span>
               </div>
             ))}
           </div>

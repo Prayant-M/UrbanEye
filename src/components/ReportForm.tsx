@@ -4,7 +4,7 @@ import { IssueCategory, UserProfile } from '../types';
 
 interface ReportFormProps {
   userProfile: UserProfile | null;
-  onIssueReported: (newIssue: any, message: string) => void;
+  onIssueReported: () => void;
   setTab: (tab: string) => void;
 }
 
@@ -101,9 +101,9 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
         throw new Error(data.error || 'Server reported failure in registering hazard.');
       }
 
-      onIssueReported(data.issue, data.message);
+      onIssueReported();
       setSuccessMsg(data.message);
-      
+
       // Auto-switch back to Map after a short pause
       setTimeout(() => {
         setTab('dashboard');
@@ -124,7 +124,7 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
           Report Community Infrastructure Threat
         </h3>
         <p className="text-xs text-slate-500 mt-1 font-medium">
-          Each submission triggers the UrbanEye Gemini Automated Triage Agent to classify, deduplicate, and assign urgency indexes instantly.
+          Gemini auto-classifies, deduplicates and prioritises your report instantly.
         </p>
       </div>
 
@@ -134,7 +134,7 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
             <div className="h-12 w-12 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 text-white shadow-md shadow-emerald-600/15">
               <Check className="h-6 w-6 stroke-[3]" />
             </div>
-            <h4 className="text-md font-bold text-slate-900">Report Successfully Synthesized</h4>
+            <h4 className="text-md font-bold text-slate-900">Submitted for AI Review</h4>
             <p className="text-xs text-slate-600 mt-2 max-w-md mx-auto">{successMsg}</p>
             <div className="text-[10px] text-slate-400 font-mono mt-4 animate-pulse">
               Redirecting to primary sentinel dashboard...
@@ -152,7 +152,7 @@ export default function ReportForm({ userProfile, onIssueReported, setTab }: Rep
             {/* Quick Presets / Seed Simulators */}
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-2 font-mono uppercase tracking-wider">
-                1-Click Quick Simulators (Skip image upload)
+                Quick presets
               </label>
               <div className="flex flex-wrap gap-2">
                 {PRESETS.map((p) => (

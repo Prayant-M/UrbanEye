@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { MapPin, Info, Flame, Shield, CheckCircle, AlertCircle, HelpCircle, ExternalLink } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { MapPin, Flame, Shield, AlertCircle, ExternalLink } from 'lucide-react';
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef } from '@vis.gl/react-google-maps';
-import { latLngToCell, cellToBoundary } from 'h3-js';
+import { latLngToCell } from 'h3-js';
 import { Issue, IssueCategory } from '../types';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 interface CivicMapProps {
   issues: Issue[];
@@ -11,18 +13,57 @@ interface CivicMapProps {
   selectedCategory: string;
 }
 
-// 8 simulated key neighborhood zones in Bangalore to position on our vector dashboard
-const WARDS_COORDS = [
-  { name: 'Koramangala', cx: 280, cy: 320, r: 42, color: 'rgba(16, 185, 129, 0.08)', borderColor: '#10b981' },
-  { name: 'Indiranagar', cx: 380, cy: 180, r: 45, color: 'rgba(6, 182, 212, 0.08)', borderColor: '#06b6d4' },
-  { name: 'HSR Layout', cx: 360, cy: 400, r: 48, color: 'rgba(245, 158, 11, 0.08)', borderColor: '#f59e0b' },
-  { name: 'Bellandur', cx: 480, cy: 360, r: 52, color: 'rgba(239, 68, 68, 0.08)', borderColor: '#ef4444' },
-  { name: 'Vasanth Nagar', cx: 210, cy: 150, r: 38, color: 'rgba(139, 92, 246, 0.08)', borderColor: '#8b5cf6' },
-  { name: 'Jayanagar', cx: 160, cy: 360, r: 46, color: 'rgba(16, 185, 129, 0.06)', borderColor: '#10b981' },
-  { name: 'Malleswaram', cx: 120, cy: 120, r: 40, color: 'rgba(236, 72, 153, 0.08)', borderColor: '#ec4899' },
-  { name: 'Whitefield', cx: 580, cy: 220, r: 55, color: 'rgba(245, 158, 11, 0.06)', borderColor: '#f59e0b' },
-];
+// ──────────────────────────────────────────────────────────────
+// Hex Grid Data Types (from bangalore-hex-grid.json)
+// ──────────────────────────────────────────────────────────────
+interface RawHexCell {
+  h3Index: string;
+  zone: 'residential' | 'workplace' | 'marketplace';
+  nearestArea: string;
+  center: { lat: number; lng: number };
+  boundary: { lat: number; lng: number }[];
+}
 
+interface HexGridData {
+  meta: {
+    city: string;
+    h3Resolution: number;
+    cellDiameterMeters: number;
+    totalCells: number;
+    zoneCounts: Record<string, number>;
+  };
+  grid: RawHexCell[];
+}
+
+interface EnrichedHexCell extends RawHexCell {
+  issueCount: number;
+  criticalCount: number;
+  topCategory: string | null;
+  severityAvg: number;
+}
+
+// ──────────────────────────────────────────────────────────────
+// Zone color palette
+// ──────────────────────────────────────────────────────────────
+const ZONE_COLORS: Record<string, string> = {
+  residential: '#2563EB',
+  workplace: '#D97706',
+  marketplace: '#059669',
+};
+
+const ZONE_LABELS: Record<string, string> = {
+  residential: '🏠 Residential',
+  workplace: '🏢 Workplace',
+  marketplace: '🛒 Marketplace',
+};
+
+// CartoDB Voyager tiles (free, no API key)
+const TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>';
+
+// ──────────────────────────────────────────────────────────────
+// Google Maps API setup (kept for Active Pins mode)
+// ──────────────────────────────────────────────────────────────
 const API_KEY =
   process.env.GOOGLE_MAPS_PLATFORM_KEY ||
   (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
@@ -30,7 +71,7 @@ const API_KEY =
   '';
 const hasValidKey = Boolean(API_KEY) && API_KEY !== 'YOUR_API_KEY';
 
-// Marker with InfoWindow helper for Google Maps
+// Marker with InfoWindow helper for Google Maps (Active Pins)
 interface GoogleMapMarkerProps {
   issue: Issue;
   isSelected: boolean;
@@ -99,9 +140,144 @@ function GoogleMapMarker({
   );
 }
 
+// ──────────────────────────────────────────────────────────────
+// Leaflet Hex Grid Map (for H3 Hotspots mode)
+// ──────────────────────────────────────────────────────────────
+interface LeafletHexMapProps {
+  hexCells: EnrichedHexCell[];
+  selectedHex: EnrichedHexCell | null;
+  onSelectHex: (hex: EnrichedHexCell | null) => void;
+}
+
+function LeafletHexMap({ hexCells, selectedHex, onSelectHex }: LeafletHexMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const polygonsRef = useRef<L.Polygon[]>([]);
+  const initRef = useRef(false);
+
+  useEffect(() => {
+    if (initRef.current || !containerRef.current) return;
+    initRef.current = true;
+
+    const map = L.map(containerRef.current, {
+      center: [12.9716, 77.5946],
+      zoom: 11,
+      zoomControl: true,
+      attributionControl: true,
+    });
+
+    L.tileLayer(TILE_URL, {
+      attribution: TILE_ATTRIBUTION,
+      maxZoom: 18,
+    }).addTo(map);
+
+    mapRef.current = map;
+
+    // Deferred sizing to avoid layout race
+    setTimeout(() => map.invalidateSize({ animate: false }), 100);
+    setTimeout(() => map.invalidateSize({ animate: false }), 500);
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      initRef.current = false;
+      polygonsRef.current = [];
+    };
+  }, []);
+
+  // Render hex polygons whenever hexCells changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Clear previous polygons
+    polygonsRef.current.forEach(p => p.remove());
+    polygonsRef.current = [];
+
+    hexCells.forEach(hex => {
+      const positions: [number, number][] = hex.boundary.map(p => [p.lat, p.lng]);
+      const baseColor = ZONE_COLORS[hex.zone] || '#2563EB';
+
+      // Issue density drives opacity: more issues → more opaque
+      const hasIssues = hex.issueCount > 0;
+      const fillOpacity = hasIssues
+        ? Math.min(0.7, 0.2 + hex.issueCount * 0.08)
+        : 0.15;
+      const strokeWeight = hasIssues ? (hex.issueCount > 3 ? 2.5 : 1.8) : 0.8;
+
+      // If critical issues, override border to red
+      const strokeColor = hex.criticalCount > 0 ? '#ef4444' : baseColor;
+
+      const polygon = L.polygon(positions, {
+        color: strokeColor,
+        weight: strokeWeight,
+        fillColor: baseColor,
+        fillOpacity,
+        opacity: 0.85,
+      }).addTo(map);
+
+      // Tooltip
+      const issueLabel = hex.issueCount === 0 ? 'No issues' : `${hex.issueCount} issue${hex.issueCount > 1 ? 's' : ''}`;
+      const critLabel = hex.criticalCount > 0 ? `<div style="color: #ef4444; font-weight: 600; font-size: 12px;">⚠ ${hex.criticalCount} critical</div>` : '';
+      const catLabel = hex.topCategory ? `<div style="color: #64748b; font-size: 12px;">Top: <span style="font-weight: 600; text-transform: capitalize;">${hex.topCategory.replace('_', ' ')}</span></div>` : '';
+
+      const tooltipHtml = `
+        <div style="min-width: 180px; font-family: system-ui, sans-serif;">
+          <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px; color: #0f172a;">
+            ${hex.nearestArea}
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+            <span style="width: 10px; height: 10px; border-radius: 3px; background: ${baseColor}; display: inline-block;"></span>
+            <span style="color: #64748b; font-size: 12px; text-transform: capitalize;">${hex.zone}</span>
+          </div>
+          <div style="color: #0f172a; font-size: 13px; font-weight: 600; margin-bottom: 2px;">
+            📋 ${issueLabel}
+          </div>
+          ${critLabel}
+          ${catLabel}
+          <div style="color: #94a3b8; font-size: 10px; margin-top: 6px; font-family: monospace;">
+            ${hex.h3Index.slice(0, 15)}…
+          </div>
+        </div>
+      `;
+
+      polygon.bindTooltip(tooltipHtml, {
+        className: 'hex-tooltip',
+        sticky: true,
+        direction: 'top',
+        offset: [0, -10],
+      });
+
+      polygon.on('click', () => onSelectHex(hex));
+
+      polygon.on('mouseover', () => {
+        polygon.setStyle({ fillOpacity: fillOpacity + 0.2, weight: strokeWeight + 1 });
+      });
+      polygon.on('mouseout', () => {
+        polygon.setStyle({ fillOpacity, weight: strokeWeight });
+      });
+
+      polygonsRef.current.push(polygon);
+    });
+  }, [hexCells, onSelectHex]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="absolute inset-0 w-full h-full"
+      style={{ zIndex: 1 }}
+    />
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Main CivicMap Component
+// ──────────────────────────────────────────────────────────────
 export default function CivicMap({ issues, selectedIssue, onSelectIssue, selectedCategory }: CivicMapProps) {
-  const [viewMode, setViewMode] = useState<'pins' | 'hex' | 'google'>('pins');
-  const [hoveredWard, setHoveredWard] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'pins' | 'hex'>('pins');
+  const [hexGridData, setHexGridData] = useState<HexGridData | null>(null);
+  const [selectedHex, setSelectedHex] = useState<EnrichedHexCell | null>(null);
+  const [hexLoading, setHexLoading] = useState(false);
 
   // Filter issues based on active category
   const filteredIssues = issues.filter(issue => {
@@ -109,48 +285,79 @@ export default function CivicMap({ issues, selectedIssue, onSelectIssue, selecte
     return true;
   });
 
-  // Calculate coordinates relative to a 700x500 box for vector map
-  const getMapPosition = (lat: number, lng: number) => {
-    // Standard bounding boxes for central Bangalore
-    // Lat: 12.89 to 13.00, Lng: 77.57 to 77.69
-    const minLat = 12.89;
-    const maxLat = 13.00;
-    const minLng = 77.57;
-    const maxLng = 77.69;
+  // Fetch hex grid data on first hex mode access
+  useEffect(() => {
+    if (viewMode === 'hex' && !hexGridData && !hexLoading) {
+      setHexLoading(true);
+      fetch('/bangalore-hex-grid.json')
+        .then(r => r.json())
+        .then((data: HexGridData) => {
+          setHexGridData(data);
+          setHexLoading(false);
+        })
+        .catch(err => {
+          console.error('Failed to load hex grid:', err);
+          setHexLoading(false);
+        });
+    }
+  }, [viewMode, hexGridData, hexLoading]);
 
-    const x = ((lng - minLng) / (maxLng - minLng)) * 700;
-    // Invert Y axis for screen space
-    const y = 500 - ((lat - minLat) / (maxLat - minLat)) * 500;
+  // Enrich hex cells with issue data
+  const enrichedHexCells = useMemo(() => {
+    if (!hexGridData) return [];
 
-    return { x: Math.max(20, Math.min(680, x)), y: Math.max(20, Math.min(480, y)) };
-  };
-
-  // Compute true H3 Hex cells for viewMode === 'hex'
-  const hexCells = useMemo(() => {
-    const grid: Record<string, { cell: string; boundary: [number, number][]; count: number; criticalCount: number }> = {};
-    filteredIssues.forEach((issue) => {
-      // Resolution 8 is good for city-level aggregation
-      const cell = latLngToCell(issue.location.lat, issue.location.lng, 7);
-      if (!grid[cell]) {
-        grid[cell] = { cell, boundary: cellToBoundary(cell), count: 0, criticalCount: 0 };
-      }
-      grid[cell].count++;
-      if (issue.severity >= 4) grid[cell].criticalCount++;
+    // Build a map of h3Index → issues for fast lookup
+    // We assign each issue to a hex cell at the same H3 resolution as the dataset (res 8)
+    const issuesByCell: Record<string, Issue[]> = {};
+    filteredIssues.forEach(issue => {
+      const cell = latLngToCell(issue.location.lat, issue.location.lng, hexGridData.meta.h3Resolution);
+      if (!issuesByCell[cell]) issuesByCell[cell] = [];
+      issuesByCell[cell].push(issue);
     });
-    return Object.values(grid);
-  }, [filteredIssues]);
 
-  // Get dynamic colors and metrics for Ward H3 cells
-  const getWardMetrics = (wardName: string) => {
-    const wardIssues = issues.filter(i => i.location.ward.toLowerCase().includes(wardName.toLowerCase()) && i.status !== 'resolved');
-    const criticalCount = wardIssues.filter(i => i.severity >= 4).length;
-    return {
-      count: wardIssues.length,
-      criticalCount,
-      color: wardIssues.length > 3 ? 'rgba(239, 68, 68, 0.12)' : wardIssues.length > 1 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.08)',
-      borderColor: wardIssues.length > 3 ? '#ef4444' : wardIssues.length > 1 ? '#f59e0b' : '#10b981'
-    };
-  };
+    return hexGridData.grid.map((raw): EnrichedHexCell => {
+      const cellIssues = issuesByCell[raw.h3Index] || [];
+      const criticalCount = cellIssues.filter(i => i.severity >= 4).length;
+
+      // Find top category
+      let topCategory: string | null = null;
+      if (cellIssues.length > 0) {
+        const catCounts: Record<string, number> = {};
+        cellIssues.forEach(i => {
+          catCounts[i.category] = (catCounts[i.category] || 0) + 1;
+        });
+        topCategory = Object.entries(catCounts).sort((a, b) => b[1] - a[1])[0][0];
+      }
+
+      const severityAvg = cellIssues.length > 0
+        ? cellIssues.reduce((s, i) => s + i.severity, 0) / cellIssues.length
+        : 0;
+
+      return {
+        ...raw,
+        issueCount: cellIssues.length,
+        criticalCount,
+        topCategory,
+        severityAvg,
+      };
+    });
+  }, [hexGridData, filteredIssues]);
+
+  const handleSelectHex = useCallback((hex: EnrichedHexCell | null) => {
+    setSelectedHex(hex);
+  }, []);
+
+  // Zone stats for hex mode header
+  const zoneStats = useMemo(() => {
+    if (!hexGridData) return null;
+    const counts = hexGridData.meta.zoneCounts;
+    const total = hexGridData.meta.totalCells;
+    return { counts, total };
+  }, [hexGridData]);
+
+  const issuesInHexCells = useMemo(() => {
+    return enrichedHexCells.filter(h => h.issueCount > 0).length;
+  }, [enrichedHexCells]);
 
   return (
     <div className="flex flex-col h-full rounded-2xl bg-white border border-slate-200 overflow-hidden shadow-sm">
@@ -166,7 +373,7 @@ export default function CivicMap({ issues, selectedIssue, onSelectIssue, selecte
           </p>
         </div>
 
-        {/* View Mode Switcher */}
+        {/* View Mode Switcher — only 2 modes now */}
         <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/60 self-start md:self-auto">
           <button
             id="map-view-pins"
@@ -191,198 +398,19 @@ export default function CivicMap({ issues, selectedIssue, onSelectIssue, selecte
           >
             <Flame className="h-3.5 w-3.5 text-amber-500" />
             H3 Hotspots
-          </button>
-          <button
-            id="map-view-google"
-            onClick={() => setViewMode('google')}
-            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              viewMode === 'google'
-                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/50'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Info className="h-3.5 w-3.5 text-cyan-600" />
-            Google Map Live
+            {hexGridData && (
+              <span className="ml-1 text-[10px] text-slate-400 font-mono">({hexGridData.meta.totalCells})</span>
+            )}
           </button>
         </div>
       </div>
 
       {/* Map Body Viewports */}
       <div className="relative flex-1 bg-slate-50 overflow-hidden min-h-[400px]" id="urbaneye-map-viewport">
-        {viewMode !== 'google' ? (
-          <>
-            {/* Elegant Vector Stage */}
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#cbd5e1_1px,transparent_1px),linear-gradient(to_bottom,#cbd5e1_1px,transparent_1px)] bg-[size:30px_30px] opacity-[0.12]"></div>
 
-            <svg viewBox="0 0 700 500" className="w-full h-full select-none">
-              {/* Ward Boundaries (only shown in pins mode for context) */}
-              {viewMode === 'pins' && WARDS_COORDS.map((ward) => {
-                const isHovered = hoveredWard === ward.name;
-
-                return (
-                  <g
-                    key={ward.name}
-                    onMouseEnter={() => setHoveredWard(ward.name)}
-                    onMouseLeave={() => setHoveredWard(null)}
-                    className="transition-all duration-300"
-                  >
-                    {/* Visual Circle Zone representing the ward bounds */}
-                    <circle
-                      cx={ward.cx}
-                      cy={ward.cy}
-                      r={ward.r}
-                      fill={ward.color}
-                      stroke={ward.borderColor}
-                      strokeWidth={isHovered ? 2.5 : 1.2}
-                      className="transition-all duration-200 cursor-pointer"
-                    />
-
-                    {/* Ward Text label on map */}
-                    <text
-                      x={ward.cx}
-                      y={ward.cy - 5}
-                      textAnchor="middle"
-                      fill="#475569"
-                      fontSize="10"
-                      fontWeight="bold"
-                      className="font-mono tracking-wider pointer-events-none"
-                    >
-                      {ward.name}
-                    </text>
-                  </g>
-                );
-              })}
-
-              {/* H3 Hex Cells (only in hex view) */}
-              {viewMode === 'hex' && hexCells.map((hex) => {
-                const points = hex.boundary.map(([lat, lng]) => {
-                  const pos = getMapPosition(lat, lng);
-                  return `${pos.x},${pos.y}`;
-                }).join(' ');
-
-                const color = hex.count > 3 ? 'rgba(239, 68, 68, 0.4)' : hex.count > 1 ? 'rgba(245, 158, 11, 0.4)' : 'rgba(16, 185, 129, 0.4)';
-                const stroke = hex.count > 3 ? '#ef4444' : hex.count > 1 ? '#f59e0b' : '#10b981';
-
-                // Find center for label
-                const centerPos = hex.boundary.reduce(
-                  (acc, curr) => {
-                    const pos = getMapPosition(curr[0], curr[1]);
-                    return { x: acc.x + pos.x / hex.boundary.length, y: acc.y + pos.y / hex.boundary.length };
-                  },
-                  { x: 0, y: 0 }
-                );
-
-                return (
-                  <g key={hex.cell} className="transition-all duration-300 hover:opacity-80 cursor-pointer">
-                    <polygon points={points} fill={color} stroke={stroke} strokeWidth="2" />
-                    <text
-                      x={centerPos.x}
-                      y={centerPos.y + 4}
-                      textAnchor="middle"
-                      fill="#ffffff"
-                      fontSize="12"
-                      fontWeight="bold"
-                      className="font-mono pointer-events-none drop-shadow-md"
-                    >
-                      {hex.count}
-                    </text>
-                  </g>
-                );
-              })}
-
-              {/* Issue PIN markers (only in pins view) */}
-              {viewMode === 'pins' && filteredIssues.map((issue) => {
-                const pos = getMapPosition(issue.location.lat, issue.location.lng);
-                const isSelected = selectedIssue?.id === issue.id;
-
-                return (
-                  <g
-                    key={issue.id}
-                    transform={`translate(${pos.x}, ${pos.y})`}
-                    className="cursor-pointer group transition-transform duration-250 hover:scale-125"
-                    onClick={() => onSelectIssue(issue)}
-                  >
-                    {/* Glow Ring for active or high severity hazards */}
-                    {issue.severity >= 4 && (
-                      <circle
-                        r={isSelected ? 18 : 12}
-                        fill="none"
-                        stroke="#f43f5e"
-                        strokeWidth="1.5"
-                        className="animate-ping opacity-60"
-                      />
-                    )}
-
-                    {/* Selection Indicator Ring */}
-                    {isSelected && (
-                      <circle
-                        r={16}
-                        fill="none"
-                        stroke="#10b981"
-                        strokeWidth="2.5"
-                      />
-                    )}
-
-                    {/* Issue Dot */}
-                    <circle
-                      r={isSelected ? 8 : 6}
-                      className={`transition-colors duration-200 fill-current ${
-                        issue.category === 'pothole' ? 'text-amber-500' :
-                        issue.category === 'water_leak' ? 'text-cyan-500' :
-                        issue.category === 'broken_streetlight' ? 'text-yellow-500' :
-                        issue.category === 'garbage' ? 'text-orange-500' :
-                        issue.category === 'drainage' ? 'text-indigo-500' :
-                        issue.category === 'illegal_dumping' ? 'text-rose-500' : 'text-emerald-500'
-                      }`}
-                      stroke="#ffffff"
-                      strokeWidth="2"
-                    />
-
-                    {/* Tiny Priority Rating label on hover */}
-                    <g className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                      <rect
-                        x="-60"
-                        y="-38"
-                        width="120"
-                        height="22"
-                        rx="6"
-                        fill="#1e293b"
-                        stroke="#475569"
-                        strokeWidth="1"
-                      />
-                      <text
-                        x="0"
-                        y="-24"
-                        textAnchor="middle"
-                        fill="#ffffff"
-                        fontSize="9"
-                        fontWeight="bold"
-                        className="font-sans"
-                      >
-                        {issue.title.slice(0, 16)}...
-                      </text>
-                    </g>
-                  </g>
-                );
-              })}
-            </svg>
-
-            {/* Selected Zone Hover Overlay */}
-            {hoveredWard && (
-              <div className="absolute top-3 right-3 rounded-xl bg-white/95 border border-slate-200 p-2.5 shadow-md text-[11px] font-mono min-w-[150px] text-left">
-                <div className="text-slate-900 font-extrabold mb-1">{hoveredWard} Ward</div>
-                <div className="text-slate-600 font-medium">
-                  Active Cases: <span className="text-amber-600 font-bold">{getWardMetrics(hoveredWard).count}</span>
-                </div>
-                <div className="text-slate-600 font-medium">
-                  High Severity: <span className="text-rose-600 font-bold">{getWardMetrics(hoveredWard).criticalCount}</span>
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
+        {/* ── ACTIVE PINS MODE: Google Maps ── */}
+        {viewMode === 'pins' && (
           <div className="absolute inset-0 w-full h-full">
-            {/* Live Google Maps Integration Viewport */}
             {!hasValidKey ? (
               <div className="absolute inset-0 flex items-center justify-center bg-slate-100 p-6 text-slate-800">
                 <div className="max-w-md bg-white border border-slate-200 rounded-2xl p-6 text-center shadow-lg">
@@ -448,33 +476,152 @@ export default function CivicMap({ issues, selectedIssue, onSelectIssue, selecte
           </div>
         )}
 
-        {/* Map Key panel */}
-        <div className="absolute bottom-3 left-3 flex flex-wrap gap-2.5 rounded-xl bg-white/95 border border-slate-200/80 p-2 text-[10px] text-slate-700 shadow-md max-w-[90%] font-bold font-mono z-10">
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 border border-white"></span>
-            Pothole
+        {/* ── HEX HOTSPOTS MODE: Leaflet + Full Bangalore Grid ── */}
+        {viewMode === 'hex' && (
+          <>
+            {hexLoading ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 border-[3px] border-amber-200 border-t-amber-600 rounded-full animate-spin" />
+                  <span className="text-slate-400 text-sm font-medium">Loading Bangalore Hex Grid…</span>
+                  <span className="text-slate-300 text-xs font-mono">1,519 H3 cells at resolution 8</span>
+                </div>
+              </div>
+            ) : enrichedHexCells.length > 0 ? (
+              <LeafletHexMap
+                hexCells={enrichedHexCells}
+                selectedHex={selectedHex}
+                onSelectHex={handleSelectHex}
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
+                <span className="text-slate-400 text-sm">Failed to load hex grid data</span>
+              </div>
+            )}
+
+            {/* Zone stats bar */}
+            {zoneStats && (
+              <div className="absolute top-3 left-3 flex flex-wrap gap-2 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/80 p-2.5 text-[10px] text-slate-700 shadow-md font-bold font-mono z-[500]">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: ZONE_COLORS.residential }}></span>
+                  Residential ({zoneStats.counts.residential})
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: ZONE_COLORS.workplace }}></span>
+                  Workplace ({zoneStats.counts.workplace})
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: ZONE_COLORS.marketplace }}></span>
+                  Marketplace ({zoneStats.counts.marketplace})
+                </div>
+                <div className="border-l border-slate-200 pl-2 flex items-center gap-1">
+                  📊 {issuesInHexCells} cells with issues
+                </div>
+              </div>
+            )}
+
+            {/* Selected hex cell detail panel */}
+            {selectedHex && (
+              <div className="absolute bottom-4 right-4 w-80 bg-white/95 backdrop-blur-md border border-slate-100 rounded-2xl p-5 z-[1000] shadow-xl animate-in slide-in-from-bottom-4 duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-bold text-slate-800 text-base">{selectedHex.nearestArea}</h4>
+                  <button
+                    onClick={() => setSelectedHex(null)}
+                    className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors text-sm"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="space-y-2.5 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Zone Type</span>
+                    <span className="capitalize text-slate-800 font-medium bg-slate-50 px-2.5 py-0.5 rounded-full text-xs flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-sm" style={{ background: ZONE_COLORS[selectedHex.zone] }}></span>
+                      {selectedHex.zone}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Reported Issues</span>
+                    <span className={`font-bold font-mono text-xs px-2.5 py-0.5 rounded-full ${
+                      selectedHex.issueCount > 3 ? 'bg-red-50 text-red-600' :
+                      selectedHex.issueCount > 0 ? 'bg-amber-50 text-amber-600' :
+                      'bg-emerald-50 text-emerald-600'
+                    }`}>
+                      {selectedHex.issueCount}
+                    </span>
+                  </div>
+                  {selectedHex.criticalCount > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Critical (Sev ≥4)</span>
+                      <span className="font-bold font-mono text-xs px-2.5 py-0.5 rounded-full bg-red-50 text-red-600">
+                        ⚠ {selectedHex.criticalCount}
+                      </span>
+                    </div>
+                  )}
+                  {selectedHex.topCategory && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Top Category</span>
+                      <span className="capitalize text-slate-700 font-medium text-xs bg-slate-50 px-2.5 py-0.5 rounded-full">
+                        {selectedHex.topCategory.replace('_', ' ')}
+                      </span>
+                    </div>
+                  )}
+                  {selectedHex.severityAvg > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Avg Severity</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${(selectedHex.severityAvg / 5) * 100}%`,
+                              background: selectedHex.severityAvg > 3.5 ? '#DC2626' : selectedHex.severityAvg > 2 ? '#D97706' : '#059669'
+                            }}
+                          />
+                        </div>
+                        <span className="text-slate-800 font-mono text-xs font-bold">{selectedHex.severityAvg.toFixed(1)}/5</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-50">
+                    <span className="text-slate-400 text-xs">H3 Index</span>
+                    <span className="text-slate-400 font-mono text-[10px]">{selectedHex.h3Index.slice(0, 15)}…</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Map Key panel (shown for pins mode) */}
+        {viewMode === 'pins' && (
+          <div className="absolute bottom-3 left-3 flex flex-wrap gap-2.5 rounded-xl bg-white/95 border border-slate-200/80 p-2 text-[10px] text-slate-700 shadow-md max-w-[90%] font-bold font-mono z-10">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-500 border border-white"></span>
+              Pothole
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-cyan-500 border border-white"></span>
+              Water Leak
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-yellow-500 border border-white"></span>
+              Streetlight
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-orange-500 border border-white"></span>
+              Garbage
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-indigo-500 border border-white"></span>
+              Drainage
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-rose-500 border border-white"></span>
+              Illegal Dump
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-cyan-500 border border-white"></span>
-            Water Leak
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-yellow-500 border border-white"></span>
-            Streetlight
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-orange-500 border border-white"></span>
-            Garbage
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-indigo-500 border border-white"></span>
-            Drainage
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-500 border border-white"></span>
-            Illegal Dump
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
